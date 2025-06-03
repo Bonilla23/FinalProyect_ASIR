@@ -4,7 +4,29 @@ import socket
 import subprocess
 import os
 import psutil
-# Detecta el sistema operativo
+import platform
+
+def inicializar_voz():
+    sistema = platform.system()
+    
+    if sistema == "Windows":
+        engine = pyttsx3.init('sapi5')
+    elif sistema == "Linux":
+        engine = pyttsx3.init('espeak')
+    else:
+        engine = pyttsx3.init()
+
+    engine.setProperty('rate', 150)
+    engine.setProperty('volume', 1.0)
+
+    voices = engine.getProperty('voices')
+    for v in voices:
+        if 'spanish' in v.name.lower() or 'es' in v.id.lower():
+            engine.setProperty('voice', v.id)
+            break
+
+    return engine
+
 def detectar_sistema():
     if os.name == "nt":
         return "Windows"
@@ -26,36 +48,32 @@ def verificar_puerto(puerto):
 
 def obtener_puertos_abiertos():
     puertos_abiertos = set()
-    sistema = detectar_sistema()
-
-    if sistema in ["Linux", "Windows"]:
-        try:
-            conexiones = psutil.net_connections(kind='inet')
-            for conn in conexiones:
-                if conn.status == psutil.CONN_LISTEN and conn.laddr:
-                    puertos_abiertos.add(conn.laddr.port)
-        except Exception as e:
-            print("Error al obtener puertos:", e)
+    try:
+        conexiones = psutil.net_connections(kind='inet')
+        for conn in conexiones:
+            if conn.status == psutil.CONN_LISTEN and conn.laddr:
+                puertos_abiertos.add(conn.laddr.port)
+    except Exception as e:
+        print("Error al obtener puertos:", e)
     return puertos_abiertos
 
 def hacer_ping(direccion):
     try:
-        if detectar_sistema() == "Windows":
-            comando = ["ping", "-n", "1", direccion]
-        else:
-            comando = ["ping", "-c", "1", direccion]
-
+        comando = ["ping", "-n", "1", direccion] if detectar_sistema() == "Windows" else ["ping", "-c", "1", direccion]
         salida = subprocess.run(comando, capture_output=True, text=True)
         return salida.returncode == 0
     except Exception:
         return False
-    
+
 def cerrar_puerto(puerto):
     sistema = detectar_sistema()
     if sistema == "Windows":
         comando = f'netsh advfirewall firewall add rule name="Bloquear puerto {puerto}" dir=in action=block protocol=TCP localport={puerto}'
     else:
-        comando = f'sudo iptables -A INPUT -p tcp --dport {puerto} -j DROP'
+        if os.geteuid() != 0:
+            print("Este comando requiere privilegios de administrador.")
+            return False
+        comando = f'iptables -A INPUT -p tcp --dport {puerto} -j DROP'
     return ejecutar_comando(comando)
 
 def abrir_puerto(puerto):
@@ -63,7 +81,10 @@ def abrir_puerto(puerto):
     if sistema == "Windows":
         comando = f'netsh advfirewall firewall delete rule name="Bloquear puerto {puerto}" protocol=TCP localport={puerto}'
     else:
-        comando = f'sudo iptables -D INPUT -p tcp --dport {puerto} -j DROP'
+        if os.geteuid() != 0:
+            print("Este comando requiere privilegios de administrador.")
+            return False
+        comando = f'iptables -D INPUT -p tcp --dport {puerto} -j DROP'
     return ejecutar_comando(comando)
 
 def ejecutar_comando(comando):
@@ -79,20 +100,20 @@ def mostrar_ayuda():
     Comandos disponibles:
 
     1. "puertos abiertos" - Muestra los puertos en estado LISTEN.
-    2. "puerto <número>" - Verifica si un puerto específico está abierto.
-    2. "abrir  puerto <número>" - Abrir un puerto.
-    2. "cerrar puerto <número>" - Cerrar un puerto.
-    3. "abrir archivo .bat" - Abrir un archivo .bat
-    4. "conexión a Google" - Verifica si tienes acceso a Internet.
-    5. "conexión a la otra máquina" - Comprueba conexión con una IP local.
-    6. "salir" - Finaliza el asistente.
+    2. "puerto <número>" - Verifica si un puerto específico está abierto o cerrado.
+    3. "abrir puerto <número>" - Abre un puerto.
+    4. "cerrar puerto <número>" - Cierra un puerto.
+    5. "abrir archivo .bat" - Abre un archivo .bat (solo Windows).
+    6. "conexión a Google" - Verifica si tienes acceso a Internet.
+    7. "conexión a la otra máquina" - Comprueba conexión con una IP local.
+    8. "salir" - Finaliza el asistente.
     """
     print(ayuda_texto)
     return ayuda_texto
 
 def reconocer_voz():
     recognizer = sr.Recognizer()
-    engine = pyttsx3.init()
+    engine = inicializar_voz()
 
     sistema = detectar_sistema()
     print(f"Sistema operativo detectado: {sistema}")
@@ -105,120 +126,137 @@ def reconocer_voz():
             recognizer.adjust_for_ambient_noise(source)
             audio = recognizer.listen(source)
 
-            try:
-                print("Reconociendo...")
-                texto = recognizer.recognize_google(audio, language="es-ES")
-                print(f"Has dicho: {texto}")
-                palabras = texto.lower().split()
+        try:
+            print("Reconociendo...")
+            texto = recognizer.recognize_google(audio, language="es-ES")
+            print(f"Has dicho: {texto}")
+            palabras = texto.lower().split()
 
-                if "salir" in texto.lower():
-                    engine.say("Hasta luego, que tengas un buen día.")
-                    engine.runAndWait()
-                    break
-            #------------------------------------------------------------------------------------#
-                elif "ayuda" in texto.lower():
-                    ayuda = mostrar_ayuda()
-                    engine.say("Los comandos disponibles son los siguientes.")
-                    engine.runAndWait()
-            #------------------------------------------------------------------------------------#   
-                elif "cerrar puerto" in texto.lower():
-                    if hacer_ping("google.com"):
-                        engine.say("La conexión a Internet funciona correctamente.")
-                    else:
-                        engine.say("No hay conexión a Internet.")
-                    engine.runAndWait()
-            #------------------------------------------------------------------------------------#
-                elif "conexión a google" in texto.lower():
-                    if hacer_ping("google.com"):
-                        engine.say("La conexión a Internet funciona correctamente.")
-                    else:
-                        engine.say("No hay conexión a Internet.")
-                    engine.runAndWait()
-            #------------------------------------------------------------------------------------#
-                elif "conexión a la otra máquina" in texto.lower():
-                    ip_objetivo = "8.8.8.8"  # Modifica según la IP de la otra maquina
-                    if hacer_ping(ip_objetivo):
-                        engine.say(f"La máquina con IP {ip_objetivo} está disponible.")
-                    else:
-                        engine.say(f"No se pudo contactar con la máquina {ip_objetivo}.")
-                    engine.runAndWait()
-            #------------------------------------------------------------------------------------#
-                elif "abrir un archivo bat" in texto.lower():
-                    engine.say("Por favor, dime la ruta completa del archivo batch.")
-                    engine.runAndWait()
+            if "salir" in texto.lower():
+                engine.say("Hasta luego, que tengas un buen día.")
+                engine.runAndWait()
+                break
 
-                    with sr.Microphone() as source:
-                        recognizer.adjust_for_ambient_noise(source)
-                        print("Escuchando la ruta del archivo...")
-                        audio = recognizer.listen(source)
+            elif "ayuda" in texto.lower():
+                mostrar_ayuda()
+                engine.say("Los comandos disponibles han sido mostrados.")
+                engine.runAndWait()
 
-                    try:
-                        ruta_bat = recognizer.recognize_google(audio, language="es-ES")
-                        print(f"Ruta reconocida: {ruta_bat}")
+            elif "conexión a google" in texto.lower():
+                if hacer_ping("google.com"):
+                    engine.say("La conexión a Internet funciona correctamente.")
+                else:
+                    engine.say("No hay conexión a Internet.")
+                engine.runAndWait()
 
-                        # Limpia texto hablado
-                        ruta_bat = ruta_bat.replace("comillas", "").replace("\"", "").strip()
+            elif "conexión a la otra máquina" in texto.lower():
+                ip_objetivo = "8.8.8.8"  # Cambiar si es necesario
+                if hacer_ping(ip_objetivo):
+                    engine.say(f"La máquina con IP {ip_objetivo} está disponible.")
+                else:
+                    engine.say(f"No se pudo contactar con la máquina {ip_objetivo}.")
+                engine.runAndWait()
 
-                        # Verifica si termina en .bat
-                        if not ruta_bat.lower().endswith(".bat"):
-                            engine.say("Ese archivo no parece ser un archivo batch.")
-                        elif os.path.isfile(ruta_bat):
+            elif "abrir archivo" in texto.lower() and ".bat" in texto.lower():
+                engine.say("Por favor, dime el nombre del archivo batch sin la ruta.")
+                engine.runAndWait()
+            
+                with sr.Microphone() as source:
+                    recognizer.adjust_for_ambient_noise(source)
+                    print("Escuchando el nombre del archivo...")
+                    audio = recognizer.listen(source)
+            
+                try:
+                    nombre_bat = recognizer.recognize_google(audio, language="es-ES")
+                    print(f"Nombre reconocido: {nombre_bat}")
+            
+                    # Limpieza básica del nombre
+                    nombre_bat = nombre_bat.strip().replace(" ", "")  # Quitamos espacios
+            
+                    # Aseguramos que termine en .bat
+                    if not nombre_bat.lower().endswith(".bat"):
+                        nombre_bat += ".bat"
+            
+                    ruta_bat = os.path.join("C:\\Admin\\ArchivosImportantes", nombre_bat)
+            
+                    if os.path.isfile(ruta_bat):
+                        if detectar_sistema() == "Windows":
                             os.startfile(ruta_bat)
-                            engine.say("El archivo batch se ha abierto correctamente.")
+                            engine.say(f"El archivo {nombre_bat} se ha abierto correctamente.")
                         else:
-                            engine.say("No se encontró el archivo en la ruta especificada.")
-                        engine.runAndWait()
-
-                    except sr.UnknownValueError:
-                        engine.say("No entendí la ruta. Inténtalo nuevamente.")
-                        engine.runAndWait()
-                    except Exception as e:
-                        print("Error al abrir archivo BAT:", e)
-                        engine.say("Ocurrió un error al intentar abrir el archivo.")
-                        engine.runAndWait()
-            #------------------------------------------------------------------------------------#
-                elif "puertos abiertos" in texto.lower():
-                    puertos = obtener_puertos_abiertos()
-                    if puertos:
-                        puertos_list = ", ".join(map(str, puertos))
-                        print(f"Puertos abiertos: {puertos_list}")
-                        engine.say("He impreso los puertos abiertos en la terminal.")
+                            # En Linux se ejecutaría con bash (si es compatible)
+                            subprocess.Popen(["bash", ruta_bat])
+                            engine.say(f"El archivo {nombre_bat} ha sido ejecutado.")
                     else:
-                        print("No hay puertos abiertos.")
-                        engine.say("No hay puertos abiertos en tu máquina.")
+                        engine.say("No se encontró el archivo en la carpeta especificada.")
                     engine.runAndWait()
-            #------------------------------------------------------------------------------------#
-                for i, palabra in enumerate(palabras):
-                    if palabra == "cerrar" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
-                        try:
-                            puerto = int(palabras[i + 2])
-                            if cerrar_puerto(puerto):
-                                engine.say(f"El puerto {puerto} ha sido bloqueado.")
-                            else:
-                                engine.say(f"No se pudo bloquear el puerto {puerto}.")
-                            engine.runAndWait()
-                            break
-                        except ValueError:
-                            continue
-                    elif palabra == "abrir" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
-                        try:
-                            puerto = int(palabras[i + 2])
-                            if abrir_puerto(puerto):
-                                engine.say(f"El puerto {puerto} ha sido desbloqueado.")
-                            else:
-                                engine.say(f"No se pudo desbloquear el puerto {puerto}.")
-                            engine.runAndWait()
-                            break
-                        except ValueError:
-                            continue
+            
+                except sr.UnknownValueError:
+                    engine.say("No entendí el nombre del archivo. Inténtalo nuevamente.")
+                    engine.runAndWait()
+                except Exception as e:
+                    print("Error al abrir archivo BAT:", e)
+                    engine.say("Ocurrió un error al intentar abrir el archivo.")
+                    engine.runAndWait()
 
-            except sr.UnknownValueError:
-                engine.say("No se pudo entender lo que dijiste.")
+            elif "puertos abiertos" in texto.lower():
+                puertos = obtener_puertos_abiertos()
+                if puertos:
+                    puertos_list = ", ".join(map(str, puertos))
+                    print(f"Puertos abiertos: {puertos_list}")
+                    engine.say("He impreso los puertos abiertos en la terminal.")
+                else:
+                    print("No hay puertos abiertos.")
+                    engine.say("No hay puertos abiertos en tu máquina.")
                 engine.runAndWait()
 
-            except sr.RequestError as e:
-                engine.say("Hubo un error al intentar conectarme al servicio.")
-                engine.runAndWait()
+            for i, palabra in enumerate(palabras):
+                # Verificar si puerto está abierto o cerrado
+                if palabra == "puerto" and i + 1 < len(palabras):
+                    try:
+                        puerto = int(palabras[i + 1])
+                        if verificar_puerto(puerto):
+                            engine.say(f"El puerto {puerto} está abierto.")
+                        else:
+                            engine.say(f"El puerto {puerto} está cerrado.")
+                        engine.runAndWait()
+                        break
+                    except ValueError:
+                        continue
+
+                # Cerrar puerto
+                elif palabra == "cerrar" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
+                    try:
+                        puerto = int(palabras[i + 2])
+                        if cerrar_puerto(puerto):
+                            engine.say(f"El puerto {puerto} ha sido bloqueado.")
+                        else:
+                            engine.say(f"No se pudo bloquear el puerto {puerto}.")
+                        engine.runAndWait()
+                        break
+                    except ValueError:
+                        continue
+
+                # Abrir puerto
+                elif palabra == "abrir" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
+                    try:
+                        puerto = int(palabras[i + 2])
+                        if abrir_puerto(puerto):
+                            engine.say(f"El puerto {puerto} ha sido desbloqueado.")
+                        else:
+                            engine.say(f"No se pudo desbloquear el puerto {puerto}.")
+                        engine.runAndWait()
+                        break
+                    except ValueError:
+                        continue
+
+        except sr.UnknownValueError:
+            engine.say("No se pudo entender lo que dijiste.")
+            engine.runAndWait()
+
+        except sr.RequestError:
+            engine.say("Hubo un error al intentar conectarme al servicio.")
+            engine.runAndWait()
 
 if __name__ == "__main__":
     reconocer_voz()
