@@ -8,7 +8,6 @@ import platform
 
 def inicializar_voz():
     sistema = platform.system()
-    
     if sistema == "Windows":
         engine = pyttsx3.init('sapi5')
     elif sistema == "Linux":
@@ -103,7 +102,7 @@ def mostrar_ayuda():
     2. "puerto <número>" - Verifica si un puerto específico está abierto o cerrado.
     3. "abrir puerto <número>" - Abre un puerto.
     4. "cerrar puerto <número>" - Cierra un puerto.
-    5. "abrir archivo .bat" - Abre un archivo .bat (solo Windows).
+    5. "abrir archivo .bat o .sh" - Abre un archivo por voz según el sistema operativo.
     6. "conexión a Google" - Verifica si tienes acceso a Internet.
     7. "conexión a la otra máquina" - Comprueba conexión con una IP local.
     8. "salir" - Finaliza el asistente.
@@ -150,52 +149,56 @@ def reconocer_voz():
                 engine.runAndWait()
 
             elif "conexión a la otra máquina" in texto.lower():
-                ip_objetivo = "8.8.8.8"  # Cambiar si es necesario
+                ip_objetivo = "8.8.8.8"  # Puedes modificar esta IP si lo necesitas
                 if hacer_ping(ip_objetivo):
                     engine.say(f"La máquina con IP {ip_objetivo} está disponible.")
                 else:
                     engine.say(f"No se pudo contactar con la máquina {ip_objetivo}.")
                 engine.runAndWait()
 
-            elif "abrir archivo" in texto.lower() and ".bat" in texto.lower():
-                engine.say("Por favor, dime el nombre del archivo batch sin la ruta.")
+            elif "abrir archivo" in texto.lower() and (".bat" in texto.lower() or ".sh" in texto.lower()):
+                sistema = detectar_sistema()
+                if sistema == "Windows":
+                    extension = ".bat"
+                    carpeta = "C:\\Admin\\ArchivosImportantes" # Cambiar ruta
+                else:
+                    extension = ".sh"
+                    carpeta = "/home/usuario/ArchivosImportantes"  # Cambiar ruta
+
+                engine.say(f"Por favor, dime el nombre del archivo {extension} sin la ruta.")
                 engine.runAndWait()
-            
+
                 with sr.Microphone() as source:
                     recognizer.adjust_for_ambient_noise(source)
                     print("Escuchando el nombre del archivo...")
                     audio = recognizer.listen(source)
-            
+
                 try:
-                    nombre_bat = recognizer.recognize_google(audio, language="es-ES")
-                    print(f"Nombre reconocido: {nombre_bat}")
-            
-                    # Limpieza básica del nombre
-                    nombre_bat = nombre_bat.strip().replace(" ", "")  # Quitamos espacios
-            
-                    # Aseguramos que termine en .bat
-                    if not nombre_bat.lower().endswith(".bat"):
-                        nombre_bat += ".bat"
-            
-                    ruta_bat = os.path.join("C:\\Admin\\ArchivosImportantes", nombre_bat)
-            
-                    if os.path.isfile(ruta_bat):
-                        if detectar_sistema() == "Windows":
-                            os.startfile(ruta_bat)
-                            engine.say(f"El archivo {nombre_bat} se ha abierto correctamente.")
+                    nombre_archivo = recognizer.recognize_google(audio, language="es-ES")
+                    print(f"Nombre reconocido: {nombre_archivo}")
+                    nombre_archivo = nombre_archivo.strip().replace(" ", "")
+                    if not nombre_archivo.lower().endswith(extension):
+                        nombre_archivo += extension
+
+                    ruta_archivo = os.path.join(carpeta, nombre_archivo)
+
+                    if os.path.isfile(ruta_archivo):
+                        if sistema == "Windows":
+                            os.startfile(ruta_archivo)
+                            engine.say(f"El archivo {nombre_archivo} se ha abierto correctamente.")
                         else:
-                            # En Linux se ejecutaría con bash (si es compatible)
-                            subprocess.Popen(["bash", ruta_bat])
-                            engine.say(f"El archivo {nombre_bat} ha sido ejecutado.")
+                            subprocess.run(["chmod", "+x", ruta_archivo])
+                            subprocess.Popen(["bash", ruta_archivo])
+                            engine.say(f"El archivo {nombre_archivo} ha sido ejecutado.")
                     else:
                         engine.say("No se encontró el archivo en la carpeta especificada.")
                     engine.runAndWait()
-            
+
                 except sr.UnknownValueError:
                     engine.say("No entendí el nombre del archivo. Inténtalo nuevamente.")
                     engine.runAndWait()
                 except Exception as e:
-                    print("Error al abrir archivo BAT:", e)
+                    print("Error al abrir archivo:", e)
                     engine.say("Ocurrió un error al intentar abrir el archivo.")
                     engine.runAndWait()
 
@@ -211,7 +214,6 @@ def reconocer_voz():
                 engine.runAndWait()
 
             for i, palabra in enumerate(palabras):
-                # Verificar si puerto está abierto o cerrado
                 if palabra == "puerto" and i + 1 < len(palabras):
                     try:
                         puerto = int(palabras[i + 1])
@@ -224,7 +226,6 @@ def reconocer_voz():
                     except ValueError:
                         continue
 
-                # Cerrar puerto
                 elif palabra == "cerrar" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
                     try:
                         puerto = int(palabras[i + 2])
@@ -237,7 +238,6 @@ def reconocer_voz():
                     except ValueError:
                         continue
 
-                # Abrir puerto
                 elif palabra == "abrir" and i + 2 < len(palabras) and palabras[i + 1] == "puerto":
                     try:
                         puerto = int(palabras[i + 2])
@@ -253,7 +253,6 @@ def reconocer_voz():
         except sr.UnknownValueError:
             engine.say("No se pudo entender lo que dijiste.")
             engine.runAndWait()
-
         except sr.RequestError:
             engine.say("Hubo un error al intentar conectarme al servicio.")
             engine.runAndWait()
