@@ -31,9 +31,9 @@ ________________________________________________________________________________
 
 Clone this repository and run the assistant:
 
-git clone https://github.com/yourusername/voice-network-assistant.git
-cd voice-network-assistant
-python assistant.py
+git clone https://github.com/Bonilla23/FinalProyect_ASIR.git
+cd FinalProyect_ASIR
+python TrabajoFinal.py
 
 Then simply speak one of the supported commands when prompted. 🎤
 ___________________________________________________________________________________
