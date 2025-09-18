@@ -5,16 +5,24 @@ It supports both Windows and Linux systems, using SpeechRecognition and pyttsx3 
 ___________________________________________________________________________________
 ✨ Features
 
-🖥️ Detects the operating system (Windows / Linux)
+🖥️ Detects the operating system (Windows / Linux)     
+
 🗣️ Voice feedback using text-to-speech
+
 🇪🇸 Recognizes voice commands in Spanish
+
 📡 Check if specific ports are open or closed
+
 📋 List all open ports (LISTEN state)
+
 🔐 Open or close ports through firewall rules
+
 🌐 Test network connectivity (ping) to:
       -  Google (internet connection)
       -  A configurable target machine (local or remote)
+      
 ⚡ Execute .bat (Windows) or .sh (Linux) files by voice
+
 ❓ Displays a help menu listing all available commands
 ___________________________________________________________________________________
 🧩 Requirements
