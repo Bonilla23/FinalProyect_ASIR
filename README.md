@@ -18,6 +18,7 @@ ________________________________________________________________________________
 🔐 Open or close ports through firewall rules
 
 🌐 Test network connectivity (ping) to:
+
       -  Google (internet connection)
       -  A configurable target machine (local or remote)
       
@@ -39,23 +40,27 @@ ________________________________________________________________________________
 
 Clone this repository and run the assistant:
 
-git clone https://github.com/Bonilla23/FinalProyect_ASIR.git
-cd FinalProyect_ASIR
-python TrabajoFinal.py
+      git clone https://github.com/Bonilla23/FinalProyect_ASIR.git
+
+      cd FinalProyect_ASIR
+
+      python TrabajoFinal.py
 
 Then simply speak one of the supported commands when prompted. 🎤
 ___________________________________________________________________________________
 🎧 Voice Commands
-Command (Spanish)	Description
-puertos abiertos	Lists all currently listening ports
-puerto <número>	Checks if the specific port is open/closed
-abrir puerto <número>	Removes firewall rule blocking the port
-cerrar puerto <número>	Adds firewall rule to block the port
-abrir archivo .bat / .sh	Runs a script from a predefined folder
-conexión a Google	Checks internet connectivity
-conexión a la otra máquina	Pings a configurable IP address
-ayuda	Shows the list of available commands
-salir	Exits the assistant
+
+Command (Spanish)	Description:
+
+      puertos abiertos	            |      Lists all currently listening ports
+      puerto <número>	            |      Checks if the specific port is open/closed
+      abrir puerto <número>	        |      Removes firewall rule blocking the port
+      cerrar puerto <número>	    |      Adds firewall rule to block the port
+      abrir archivo .bat / .sh	    |      Runs a script from a predefined folder
+      conexión a Google	            |      Checks internet connectivity
+      conexión a la otra máquina	|      Pings a configurable IP address
+      ayuda	                        |      Shows the list of available commands
+      salir	                        |      Exits the assistant
 ___________________________________________________________________________________
 ⚠️ Permissions
 
